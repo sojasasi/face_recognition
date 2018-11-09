@@ -3,7 +3,7 @@
 
 function preprocessingImage()
 
-	datatpath = '';
+	datapath = '';
 	D = dir(datapath);
 	
 	%calculate no of images in a directory
@@ -13,7 +13,7 @@ function preprocessingImage()
 			imgcount = imgcount + 1;
 		end
 	end
-
+	
 	%Preprocessing
 	preprocessed_image_matrix = [];
 	for i = 1 : imgcount
@@ -22,14 +22,18 @@ function preprocessingImage()
 
 		%1 Converting RGB scale to grayscale
 		img = rgb2gray(img);
-
+		
+		%resize the image to standardize image size
+		img = imresize(img, [500,500]);
+		
 		%Reshaping the matrix
 		[row col] = size(img);
-		temp = reshape(img',row*col,1); 
+		temp = reshape(img',row*col,1); %the transpose of image is taken because of reshape function
 		preprocessed_image_matrix = [preprocessed_image_matrix temp];
 	end
 
-	normalised_image_matrix = preprocessed_image_matrix - mean(preprocessed_image_matrix);
+	mean_face = mean(preprocessed_image_matrix, 2); %mean value of a particular pixel of training images
+	normalised_image_matrix = preprocessed_image_matrix - repmat(mean_face, [1, imgcount]);
 	
 	covariance_matrix = [];
 	covariance_matrix = normalised_image_matrix' * normalised_image_matrix;
@@ -44,20 +48,29 @@ function preprocessingImage()
 	
 	eigen_faces = normalised_image_matrix * largest_eigenvectors;
 	
+	%calculate the weight space for each known individual by projecting their faceimages onto facespaces
+	weights_known = [ ];  % projected image vector matrix
+	for i = 1 : size(eigenfaces,2)
+		temp = eigenfaces' * normalised_image_matrix(:,i);
+		weights_known = [weights_known temp];
+	end
+
 	testDir = '';
 	unknown_face_image = imread(testDir);
 	unknown_face_image = unknown_face_image(:,:,1);
 	[r c] = size(unknown_face_image);
 	temp = reshape(unknown_face_image',r*c,1);
-	temp = double(temp)- mean(unknown_face_image);
-	eigenface_of_unknown_image = eigenfaces' * temp;
+	temp = double(temp)- mean_face; % for this the size of the unknown image and known image needs to be same.. figure out
 	
-	euclide_dist = [ ];
+	%calculate weights of the unknown input images with the eigenfaces
+	weights_unknown = eigenfaces' * temp;
+	
+	euclide_dist = [];
 	for i=1 : size(eigenfaces,2)
-		temp = (norm(projtestimg-projectimg(:,i)))^2;
+		temp = (norm(weights_unknown - weights_known(:,i)))^2;
 		euclide_dist = [euclide_dist temp];
 	end
 	[euclide_dist_min recognized_index] = min(euclide_dist);
-	recognized_img = strcat(int2str(recognized_index),'.jpg');
+	recognized_img = strcat('tface_',int2str(recognized_index),'.jpg');
 
 end
